@@ -211,3 +211,32 @@ LightRAG uses `priority_limit_async_func_call` (in `utils.py`) to manage LLM rat
 *   **Environment Variables**: Heavily used for setup (`OPENAI_API_KEY`, `LIGHTRAG_LOG_DIR`).
 *   **Storage Swapping**: Users can mix and match storage backends (e.g., Neo4j for Graph + Milvus for Vector + Redis for KV) by passing different storage class instances to `LightRAG`.
 *   **Custom Prompts**: System prompts (in `prompt.py`) can be overridden via `global_config` to tailor extraction/generation styles (e.g., changing the language or detail level).
+
+### 6.1 Tokenizer Customization
+
+While LightRAG defaults to `tiktoken` (OpenAI's tokenizer), it supports custom tokenizers via the `Tokenizer` interface. This is useful when using models with different tokenization schemes, such as Google's Gemini.
+
+To use a custom tokenizer (e.g., for Gemini):
+1.  Implement a wrapper class adhering to the `Tokenizer` protocol (must implement `encode` and `decode`).
+2.  Pass an instance of this class to the `LightRAG` constructor via the `tokenizer` argument.
+
+```python
+from lightrag.utils import Tokenizer
+
+class GeminiTokenizer(Tokenizer):
+    def __init__(self, model_name: str = "models/gemini-1.5-flash"):
+        self.model_name = model_name
+        # Initialize Google GenAI client/tokenizer here
+    
+    def encode(self, content: str) -> list[int]:
+        # Implement encoding logic using Google's SDK
+        # return list of token IDs
+        pass
+    
+    def decode(self, tokens: list[int]) -> str:
+        # Implement decoding logic
+        pass
+
+# Usage
+rag = LightRAG(..., tokenizer=GeminiTokenizer())
+```
