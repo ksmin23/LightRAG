@@ -221,22 +221,127 @@ To use a custom tokenizer (e.g., for Gemini):
 2.  Pass an instance of this class to the `LightRAG` constructor via the `tokenizer` argument.
 
 ```python
+import os
+from typing import List
 from lightrag.utils import Tokenizer
+from google import genai
 
 class GeminiTokenizer(Tokenizer):
-    def __init__(self, model_name: str = "models/gemini-1.5-flash"):
+    def __init__(self, model_name: str = "gemini-2.5-flash"):
         self.model_name = model_name
-        # Initialize Google GenAI client/tokenizer here
+        self.token_map = {}
+        try:
+            project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
+            assert project_id is not None
+            location = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
+            self.client = genai.Client(vertexai=True, project=project_id, location=location)
+        except Exception as e:
+            # Fallback or error handling
+            print(f"Error initializing Gemini tokenizer: {e}")
+            raise
+
+    def encode(self, content: str) -> List[int]:
+        # returns the list of token IDs
+        response = self.client.models.compute_tokens(
+            model=self.model_name,
+            contents=content,
+        )
+        # Store token_ids -> tokens(bytes) mapping for decoding
+        if response.tokens_info:
+            info = response.tokens_info[0]
+            for t_id, t_bytes in zip(info.token_ids, info.tokens):
+                self.token_map[t_id] = t_bytes
+            return info.token_ids
+        return []
     
-    def encode(self, content: str) -> list[int]:
-        # Implement encoding logic using Google's SDK
-        # return list of token IDs
-        pass
-    
-    def decode(self, tokens: list[int]) -> str:
-        # Implement decoding logic
-        pass
+    def decode(self, tokens: List[int]) -> str:
+        # returns the original string using stored token map
+        decoded_bytes = b""
+        for t_id in tokens:
+            if t_id in self.token_map:
+                decoded_bytes += self.token_map[t_id]
+        return decoded_bytes.decode("utf-8", errors="replace")
 
 # Usage
-rag = LightRAG(..., tokenizer=GeminiTokenizer())
+# rag = LightRAG(..., tokenizer=GeminiTokenizer())
+```
+
+### 6.2 Chunking Customization (`chunking_func`)
+
+LightRAG allows users to override the default text chunking logic (`chunking_by_token_size`) by providing a custom `chunking_func`. This is useful for implementing domain-specific splitting (e.g., paragraph-based, sentence-based, or Markdown-aware chunking).
+
+To use a custom chunking function:
+1.  Define a synchronous or asynchronous function that matches the required signature.
+2.  Pass this function to the `LightRAG` constructor via the `chunking_func` argument.
+
+#### Synchronous vs Asynchronous Support
+
+The `chunking_func` can be implemented as either a synchronous or an asynchronous function. The LightRAG framework automatically detects the type of the function and handles it appropriately.
+
+- **Synchronous**: If the function is a standard `def`, it is called directly.
+- **Asynchronous**: If the function is an `async def`, it is awaited automatically.
+
+This flexibility allows you to perform basic text manipulation synchronously or more complex, IO-bound operations (like calling an external API for splitting) asynchronously.
+
+#### Function Signature
+
+The custom function must accept the following arguments and return a list of dictionaries:
+
+```python
+from typing import Any, List, Dict
+from lightrag.utils import Tokenizer
+
+def my_custom_chunking(
+    tokenizer: Tokenizer,
+    content: str,
+    split_by_character: str | None = None,
+    split_by_character_only: bool = False,
+    chunk_overlap_token_size: int = 100,
+    chunk_token_size: int = 1200,
+) -> List[Dict[str, Any]]:
+    # Implementation here...
+    return [
+        {
+            "tokens": token_count, # int
+            "content": chunk_text, # str
+            "chunk_order_index": index # int
+        },
+        # ...
+    ]
+```
+
+#### Example Implementation (Paragraph-based)
+
+```python
+def paragraph_chunking(
+    tokenizer: Tokenizer,
+    content: str,
+    split_by_character: str | None = None,
+    split_by_character_only: bool = False,
+    chunk_overlap_token_size: int = 100,
+    chunk_token_size: int = 1200,
+) -> List[Dict[str, Any]]:
+    """Simple paragraph-based chunker example."""
+    chunks = []
+    # Simple split by double newline
+    paragraphs = content.split("\n\n")
+    
+    for i, p in enumerate(paragraphs):
+        p = p.strip()
+        if not p:
+            continue
+            
+        # Calculate tokens using the provided tokenizer
+        token_ids = tokenizer.encode(p)
+        token_count = len(token_ids)
+        
+        chunks.append({
+            "tokens": token_count,
+            "content": p,
+            "chunk_order_index": i
+        })
+    return chunks
+
+# Usage
+# rag = LightRAG(..., chunking_func=paragraph_chunking)
 ```
