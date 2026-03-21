@@ -1,5 +1,10 @@
 # LightRAG Technical Specification
 
+- **Source Repository:** [HKUDS/LightRAG](https://github.com/HKUDS/LightRAG)
+- **Analyzed Commit:** [`c884d7dd`](https://github.com/HKUDS/LightRAG/tree/c884d7dda261d82a92312fdae0028ad9fdde6fc3) (2026-02-09)
+- **Initial Document Date:** 2026-02-11
+- **Last Updated:** 2026-03-20
+
 ## 1. Executive Summary
 
 LightRAG is a specialized Retrieval-Augmented Generation (RAG) framework designed to be simple, fast, and cost-effective. Unlike traditional RAG systems that rely solely on vector similarity, LightRAG integrates **Graph-based** and **Vector-based** retrieval strategies. It builds a Knowledge Graph (KG) from documents to capture complex relationships and entities, enabling "Global" (high-level summary) and "Local" (specific detail) query capabilities. The system is built with an "Async-First" architecture to handle high-throughput ingestion and retrieval.
